@@ -1,20 +1,14 @@
-package us.dynmap.citizens2;
-import java.io.IOException;
+package us.dynmap.dwarfcraft;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import net.citizensnpcs.api.CitizensAPI;
-import net.citizensnpcs.api.CitizensPlugin;
-import net.citizensnpcs.api.event.NPCCreateEvent;
-import net.citizensnpcs.api.event.NPCDeathEvent;
-import net.citizensnpcs.api.event.NPCDespawnEvent;
-import net.citizensnpcs.api.event.NPCRemoveEvent;
-import net.citizensnpcs.api.event.NPCSpawnEvent;
-import net.citizensnpcs.api.npc.NPC;
-import net.citizensnpcs.api.npc.NPCRegistry;
+import com.Jessy1237.DwarfCraft.DwarfCraft;
+import com.Jessy1237.DwarfCraft.models.DwarfSkill;
+import com.Jessy1237.DwarfCraft.models.DwarfTrainer;
 
 import org.bukkit.Location;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -31,51 +25,58 @@ import org.dynmap.markers.MarkerAPI;
 import org.dynmap.markers.MarkerIcon;
 import org.dynmap.markers.MarkerSet;
 
-public class DynmapCitizens2Plugin extends JavaPlugin {
+public class DynmapDwarfCraftPlugin extends JavaPlugin {
     private static Logger log;
 
     Plugin dynmap;
     DynmapAPI api;
     MarkerAPI markerapi;
-    CitizensPlugin citizens;
+    DwarfCraft dwarfCraft;
     private MarkerIcon deficon;
-    private MarkerSet npcset;
+    private MarkerSet trainerset;
+    HashMap<Integer, DwarfSkill> skills;
     boolean reload = false;
     
     FileConfiguration cfg;
     
-    private Set<String> existingnpcs = new HashSet<String>();
+    private Set<String> existingtrainers = new HashSet<>();
 
-    private void processNPC(MarkerSet set, NPC npc) {
-        processNPC(set, npc, null);
+    private void processTrainer(MarkerSet set, DwarfTrainer trainer) {
+        processTrainer(set, trainer, null);
     }
     
-    private void processNPC(MarkerSet set, NPC npc, Set<String> toremove) {
-        UUID uuid = npc.getUniqueId();
+    private void processTrainer(MarkerSet set, DwarfTrainer trainer, Set<String> toremove) {
+        UUID uuid = trainer.getEntity().getUniqueId();
         String id = "npc_" + Long.toHexString(uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits());
         Entity ent = null;
-        if (npc.isSpawned()) {
-            ent = npc.getEntity();
+        if (trainer.getEntity().isSpawned()) {
+            ent = trainer.getEntity().getEntity();
         }
         if (ent == null) {  // If null, see if we need to remove it
-            if (existingnpcs.contains(id)) {    // Found?
+            if (existingtrainers.contains(id)) {    // Found?
                 Marker m = set.findMarker(id);
                 if (m != null) {
                     m.deleteMarker();
                 }
-                existingnpcs.remove(id);
+                existingtrainers.remove(id);
             }
         }
         else {
             Location loc = ent.getLocation();
             Marker m = set.findMarker(id);
+            DwarfSkill skill = skills.get( trainer.getSkillTrained() );
+            int minLevel = trainer.getMinSkill();
+
+            if (minLevel < 0) minLevel = 0;
             if (m == null) {
-                m = set.createMarker(id, npc.getName(), false, loc.getWorld().getName(), loc.getX(), loc.getY(), loc.getZ(), deficon, false);
-                existingnpcs.add(id);
+                m = set.createMarker(id, trainer.getName(), false, loc.getWorld().getName(), loc.getX(), loc.getY(), loc.getZ(), deficon, false);
+                m.setDescription( "Skill: " + skill.getDisplayName() + " <br> Min Level: " + minLevel + " <br>Max Level: " + trainer.getMaxSkill() );
+                existingtrainers.add(id);
             }
             else {
                 m.setLocation(loc.getWorld().getName(), loc.getX(), loc.getY(), loc.getZ());
-                m.setLabel(npc.getName());
+                m.setLabel(trainer.getName());
+                m.setDescription( "Skill: " + skill.getDisplayName() + " <br> Min Level: " + minLevel + " <br>Max Level: " + trainer.getMaxSkill() );
             }
             if (toremove != null) {
                 toremove.remove(id);
@@ -83,22 +84,20 @@ public class DynmapCitizens2Plugin extends JavaPlugin {
         }
     }
     
-    private void updateAllNPCs(MarkerSet npcset) {
-        Iterable<NPCRegistry> reg = CitizensAPI.getNPCRegistries();
-        HashSet<String> toremove = new HashSet<String>(existingnpcs);
+    private void updateAllNPCs(MarkerSet trainerset) {
+        HashMap<Integer, DwarfTrainer> reg = dwarfCraft.getDataManager().trainerList;
+        HashSet<String> toremove = new HashSet<String>(existingtrainers);
         if (reg != null) {
-            for (NPCRegistry r : reg) {
-                for (NPC npc : r) {
-                    processNPC(npcset, npc, toremove);
-                }
+            for (DwarfTrainer trainer : reg.values()) {
+                processTrainer(trainerset, trainer, toremove);
             }
         }
         for (String s : toremove) {
-            Marker m = npcset.findMarker(s);
+            Marker m = trainerset.findMarker(s);
             if (m != null) {
                 m.deleteMarker();
             }
-            existingnpcs.remove(s);
+            existingtrainers.remove(s);
         }
     }
 
@@ -117,30 +116,6 @@ public class DynmapCitizens2Plugin extends JavaPlugin {
     public static void severe(String msg) {
         log.log(Level.SEVERE, msg);
     }
-
-
-    private class OurNPCListener implements Listener {
-        @EventHandler
-        public void onNPCCreate(NPCCreateEvent evt) {
-            processNPC(npcset, evt.getNPC());
-        }
-        @EventHandler
-        public void onNPCRemove(NPCRemoveEvent evt) {
-            processNPC(npcset, evt.getNPC());
-        }
-        @EventHandler
-        public void onNPCSpawn(NPCSpawnEvent evt) {
-            processNPC(npcset, evt.getNPC());
-        }
-        @EventHandler
-        public void onNPCDespawn(NPCDespawnEvent evt) {
-            processNPC(npcset, evt.getNPC());
-        }
-        @EventHandler
-        public void onNPCDeath(NPCDeathEvent evt) {
-            processNPC(npcset, evt.getNPC());
-        }
-    }
     
     private class OurServerListener implements Listener {
         @EventHandler
@@ -148,7 +123,7 @@ public class DynmapCitizens2Plugin extends JavaPlugin {
             Plugin p = event.getPlugin();
             String name = p.getDescription().getName();
             if(name.equals("dynmap") || name.equals("Essentials")) {
-                if(dynmap.isEnabled() && citizens.isEnabled())
+                if(dynmap.isEnabled() && dwarfCraft.isEnabled())
                     activate();
             }
         }
@@ -164,32 +139,27 @@ public class DynmapCitizens2Plugin extends JavaPlugin {
             return;
         }
         api = (DynmapAPI) dynmap; /* Get API */
-        /* Get Citizens */
-        Plugin p = pm.getPlugin("Citizens");
+        /* Get DwarfCraft */
+        Plugin p = pm.getPlugin("DwarfCraft");
         if(p == null) {
-            severe("Cannot find Citizens!");
+            severe("Cannot find DwarfCraft!");
             return;
         }
-        citizens = (CitizensPlugin) p;
+        dwarfCraft = (DwarfCraft) p;
 
-        getServer().getPluginManager().registerEvents(new OurServerListener(), this);        
+        getServer().getPluginManager().registerEvents(new OurServerListener(), this);
 
         /* If both enabled, activate */
-        if(dynmap.isEnabled() && citizens.isEnabled()) {
+        if(dynmap.isEnabled() && dwarfCraft.isEnabled()) {
             activate();
-            try { 
-                MetricsLite ml = new MetricsLite(this);
-                ml.start();
-            } catch (IOException iox) {
-            }
         }
     }
 
     private class MarkerUpdate implements Runnable {
         public void run() {
             if (!stop) {
-                updateAllNPCs(npcset);
-                getServer().getScheduler().scheduleSyncDelayedTask(DynmapCitizens2Plugin.this, this, updperiod);
+                updateAllNPCs(trainerset);
+                getServer().getScheduler().scheduleSyncDelayedTask(DynmapDwarfCraftPlugin.this, this, updperiod);
             }
         }
     }
@@ -201,7 +171,7 @@ public class DynmapCitizens2Plugin extends JavaPlugin {
             severe("Error loading Dynmap marker API!");
             return;
         }
-            
+
         /* Load configuration */
         if(reload) {
             reloadConfig();
@@ -212,13 +182,15 @@ public class DynmapCitizens2Plugin extends JavaPlugin {
         FileConfiguration cfg = getConfig();
         cfg.options().copyDefaults(true);   /* Load defaults, if needed */
         this.saveConfig();  /* Save updates, if needed */
-        deficon = markerapi.getMarkerIcon("offlineuser");
-        npcset = markerapi.getMarkerSet("Citizens2");
-        if (npcset == null) {
-            npcset = markerapi.createMarkerSet("Citizens2", "NPCs", null, false);
+        deficon = markerapi.getMarkerIcon("bookshelf");
+        trainerset = markerapi.getMarkerSet("DwarfCraft");
+        if (trainerset == null) {
+            trainerset = markerapi.createMarkerSet("DwarfCraft", "DwarfCraft Trainers", null, false);
         }
-        getServer().getPluginManager().registerEvents(new OurNPCListener(), this);        
-        
+
+        skills = dwarfCraft.getConfigManager().getAllSkills();
+        updateAllNPCs( trainerset );
+
         /* Set up update job - based on period */
         double per = cfg.getDouble("update.period", 5.0);
         if(per < 2.0) per = 2.0;

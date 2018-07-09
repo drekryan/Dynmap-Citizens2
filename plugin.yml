@@ -1,0 +1,6 @@
+name: Dynmap-DwarfCraft
+main: us.dynmap.dwarfcraft.DynmapDwarfCraftPlugin
+version: "${project.version}"
+author: drekryan
+depend: [ dynmap, DwarfCraft ]
+

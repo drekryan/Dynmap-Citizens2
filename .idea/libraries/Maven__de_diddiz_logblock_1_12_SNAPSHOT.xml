@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: de.diddiz:logblock:1.12-SNAPSHOT">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/de/diddiz/logblock/1.12-SNAPSHOT/logblock-1.12-20171211.230204-7.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/de/diddiz/logblock/1.12-SNAPSHOT/logblock-1.12-20171211.230204-7-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/de/diddiz/logblock/1.12-SNAPSHOT/logblock-1.12-20171211.230204-7-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
